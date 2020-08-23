@@ -1,0 +1,187 @@
+from config import *
+from utility.data_sourcer import *
+from utility.parameters import Parameters
+from utility.custom_layers import *
+from utility.model_manager import ModelManager
+from utility.utility import *
+
+DOG_ID = 'n02084071'
+KIT_FOX_ID = 'n02119789'
+AIRPLANE_ID = 'n04552348'
+GOLF_BALL_ID = 'n03445777'
+IDS = [DOG_ID, KIT_FOX_ID, AIRPLANE_ID, GOLF_BALL_ID]
+IDS_DICT = {'dog': DOG_ID, 'fox': KIT_FOX_ID, 'airplane': AIRPLANE_ID, 'golfball': GOLF_BALL_ID}
+
+
+if __name__ == "__main__":
+    config = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=4, inter_op_parallelism_threads=4,
+                                      allow_soft_placement=True, device_count={'CPU': 1, 'GPU': 1})
+    config.gpu_options.allow_growth = True
+    # config.gpu_options.per_process_gpu_memory_fraction = 0.6
+    sess = tf.compat.v1.Session(config=config)
+    tf.compat.v1.keras.backend.set_session(sess)
+
+    params = Parameters()
+    params.IMAGE_WIDTH = 448
+    params.IMAGE_HEIGHT = 448
+    params.ANCHOR_RATIOS = [0.6041739339219643, 0.9994668733549451, 1.8924804524684733]
+    params.ANCHOR_SCALES = [76.8881118881119, 160.56993006993008, 260.7412587412587]
+    params.BATCH_SIZE = 32
+    params.EPOCHS = 1 #8 epochs for rpn and 10*3 for cls
+    params.NUM_VAL_BATCHES = 2
+    params.STRIDE = 16
+    params.NUM_CLASSES = 2
+
+    sourcer = DataSourcer()
+    model_manager = ModelManager()
+
+    split = None
+    output_file_path = 'utility/data_sets/test'
+    data_name = 'multi'
+
+    # =================================
+    # Data Prep
+    # =================================
+
+    # with open('utility/data_sets/ball_images.pickle', 'rb') as f:
+    #     ball_images = pickle.load(f)
+    # with open('utility/data_sets/ball_bboxes.pickle', 'rb') as f:
+    #     ball_bboxes = pickle.load(f)
+    # ball_images, ball_bboxes = sourcer.rotate_expansion(ball_images, ball_bboxes)
+    #
+    # with open('utility/data_sets/ukulele_images.pickle', 'rb') as f:
+    #     uk_images = pickle.load(f)
+    # with open('utility/data_sets/ukulele_bboxes.pickle', 'rb') as f:
+    #     uk_bboxes = pickle.load(f)
+    # uk_images, uk_bboxes = sourcer.rotate_expansion(uk_images, uk_bboxes)
+    #
+    # slice = min(ball_images.shape[0], int(uk_images.shape[0]/2))
+    # ball_images = ball_images[:slice]
+    # ball_bboxes = ball_bboxes[:slice]
+    # uk_images = uk_images[:slice*2]
+    # uk_bboxes = uk_bboxes[:slice*2]
+    #
+    # ball_cls = np.array([[1, 0] for i in range(slice)])
+    # uk_cls = np.array([[0, 1] for i in range(slice*2)])
+    #
+    # images = np.concatenate((ball_images, uk_images), axis=0)
+    # bboxes = np.concatenate((ball_bboxes, uk_bboxes), axis=0)
+    # cls = np.concatenate((ball_cls, uk_cls), axis=0)
+    # print(images.shape, bboxes.shape, cls.shape)
+    #
+    # anchors = U.smart_calc(bboxes)
+    # params.ANCHOR_RATIOS = anchors[0]
+    # params.ANCHOR_SCALES = anchors[1]
+    # print(anchors)
+    #
+    # indices = np.random.choice(range(images.shape[0]), (1200,), replace=False)
+    # images = images[indices]
+    # bboxes = bboxes[indices]
+    # cls = cls[indices]
+    #
+    # x_set, y_set = sourcer.create_bbox_set_v2(images, bboxes)
+    # os.makedirs(output_file_path, exist_ok=True)
+    # sourcer.split_write(output_file_path, data_name + '_images', images, split)
+    # sourcer.split_write(output_file_path, data_name + '_bboxes', bboxes, split)
+    # sourcer.split_write(output_file_path, data_name + '_cls', cls, split)
+    # sourcer.split_write(output_file_path, data_name + '_x_set', x_set, split)
+    # sourcer.split_write(output_file_path, data_name + '_y_set', y_set, split)
+
+    # =================================
+    # RPN Model Gen and Training
+    # =================================
+
+    # x_set = sourcer.split_read(output_file_path, data_name + '_x_set', split)
+    # y_set = sourcer.split_read(output_file_path, data_name + '_y_set', split)
+    # print(x_set.shape, y_set.shape)
+    #
+    # model = VGG16(input_shape=(params.IMAGE_HEIGHT, params.IMAGE_WIDTH, 3), include_top=False)
+    # input = Input((params.IMAGE_HEIGHT, params.IMAGE_WIDTH, 3))
+    # x = input
+    # for layer in model.layers[1:-1]:
+    #     layer.trainable = False
+    #     x = layer(x)
+    # num_anchors = params.num_anchors()
+    #
+    # x = Conv2D(256, (3, 3), activation='relu', padding='same', name='rpn_conv')(x)
+    # x = Dropout(0.1)(x)
+    # b_reg = Conv2D(num_anchors * 4, (1, 1), name='b_reg')(x)
+    # a_reg = Conv2D(num_anchors, (1, 1), activation='softmax', name='a_reg')(x)
+    # cls = Conv2D(1, (1, 1), activation='sigmoid', padding='same', name='cls')(x)
+    #
+    # output = Concatenate(name='concat')([b_reg, a_reg, cls])
+    #
+    # model = keras.Model(inputs=[input], outputs=[output])
+    # model.summary()
+    #
+    # lr_schedule = ExponentialDecay(0.01, decay_steps=int((x_set.shape[0]/params.BATCH_SIZE)*params.EPOCHS/3), decay_rate=0.1, staircase=True)
+    # model.compile(optimizer=SGD(learning_rate=lr_schedule), loss=ModelManager.rpn_loss_v2)
+    # fit_data = model.fit(x_set, y_set, params.BATCH_SIZE, params.EPOCHS, validation_split=0.05)
+    # model.save('example_rpn.h5')
+    #
+    # plt.plot(fit_data.history['loss'], label='loss')
+    # plt.plot(fit_data.history['val_loss'], label='val_loss')
+    # plt.ylim(0, 0.2)
+    # plt.legend()
+    # plt.show()
+
+    # =======================================
+    # Classification Model Gen and Training
+    # =======================================
+
+    # x_set = sourcer.split_read(output_file_path, data_name + '_x_set', split)
+    # y_set = sourcer.split_read(output_file_path, data_name + '_cls', split)
+    #
+    # model = keras.models.load_model('example_rpn.h5', compile=False)
+    # for layer in model.layers:
+    #     layer.trainable = False
+    # feature_map = model.get_layer('block5_conv3').output
+    # proposals = model.get_layer('concat').output
+    #
+    # bboxes = NMSLayerV2(params.get_anchors(), batch_size=params.BATCH_SIZE, stride=params.STRIDE, cls_thresh=0.5)(proposals)
+    # x = ROIPooling(params.BATCH_SIZE, stride=params.STRIDE, output_size=[7, 7], training=True)([feature_map, bboxes])
+    #
+    # x = Flatten()(x)
+    # x = Dense(512, activation='relu')(x)
+    # x = Dense(512, activation='relu')(x)
+    # output = Dense(params.NUM_CLASSES, activation='softmax')(x)
+    # model = keras.Model(inputs=model.inputs, outputs=[output])
+    #
+    # model.summary()
+    #
+    # model.compile(optimizer=SGD(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
+    #
+    # new_num_data_points = int(math.floor(len(x_set) / params.BATCH_SIZE) * params.BATCH_SIZE)
+    # x_set = x_set[:new_num_data_points]
+    # y_set = y_set[:new_num_data_points]
+    # train_x_set = x_set[:-params.NUM_VAL_BATCHES * params.BATCH_SIZE]
+    # train_y_set = y_set[:-params.NUM_VAL_BATCHES * params.BATCH_SIZE]
+    # val_x_set = x_set[-params.NUM_VAL_BATCHES * params.BATCH_SIZE:]
+    # val_y_set = y_set[-params.NUM_VAL_BATCHES * params.BATCH_SIZE:]
+    # fit_data = model.fit(train_x_set, train_y_set, epochs=params.EPOCHS, batch_size=params.BATCH_SIZE,
+    #                      validation_data=(val_x_set, val_y_set), verbose=1)
+    #
+    # model.save('example.h5')
+    # plt.plot(fit_data.history['loss'], label='loss')
+    # plt.plot(fit_data.history['val_loss'], label='val_loss')
+    # plt.ylim(0, 0.2)
+    # plt.legend()
+    # plt.show()
+
+    # =======================================
+    # Reorganizing for Implementation
+    # =======================================
+
+    model = keras.models.load_model('example.h5', compile=False,
+                                    custom_objects={'NMSLayerV2': NMSLayerV2, 'ROIPooling': ROIPooling})
+    for layer in model.layers:
+        layer.trainable = False
+    rpn_out = model.get_layer('concat').output
+    bboxes = NMSLayerV2(anchors=params.get_anchors(), batch_size=1, cls_thresh=0.85, max_iou=0.05)(rpn_out)
+
+    maps = model.get_layer('block5_conv3').output
+    pooled_maps = ROIPooling(batch_size=1, training=False)([maps, bboxes])
+    cls = LoopedDense(multi_model=model, num_classes=2)(pooled_maps)
+    model = keras.Model(inputs=model.inputs, outputs=[bboxes, cls])
+    model.summary()
+    model.save('example_net.h5', include_optimizer=False)
