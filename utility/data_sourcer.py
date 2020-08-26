@@ -1,3 +1,4 @@
+from config import *
 import requests
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as et
@@ -5,11 +6,8 @@ import tarfile
 import os
 import numpy as np
 import cv2
-from tensorflow.keras.applications.vgg16 import preprocess_input
 from tqdm import tqdm
-import math
-from .utility import Utility as U
-from .parameters import Parameters
+from .util import *
 import multiprocessing
 import pickle
 from scipy.stats import zscore
@@ -19,7 +17,8 @@ class DataSourcer:
     def __init__(self):
         self.params = Parameters()
 
-    def get_mapping(self, url):
+    @staticmethod
+    def get_mapping(url):
         # returns dictionary of the form filename:url
         response = requests.get(url)
         str_soup = str(BeautifulSoup(response.content, 'html.parser'))
@@ -27,7 +26,8 @@ class DataSourcer:
         map_dict = {entry[0]: entry[1] for entry in [pair.split() for pair in split_mappings if pair != '']}
         return map_dict
 
-    def get_file_data(self, data_path):
+    @staticmethod
+    def get_file_data(data_path):
         # returns dictionary of the form filename:coords
         print('Extracting bbox info...')
         raw_data = tarfile.open(data_path, 'r:gz')
@@ -46,7 +46,8 @@ class DataSourcer:
             data_dict[filename] = [x1, y1, x2, y2]
         return data_dict
 
-    def compile_data(self, image_size, mapping, coords_data, max_count):
+    @staticmethod
+    def compile_data(image_size, mapping, coords_data, max_count):
         print('Compiling data...')
         images, bboxes = [], []
 
@@ -61,7 +62,7 @@ class DataSourcer:
                 if image is None:
                     continue
                 coords = coords_data[filename]
-                bbox = U.coords_to_bbox(coords)
+                bbox = coords_to_bbox(coords)
                 x_scaling = image_size[0]/image.shape[1]
                 y_scaling = image_size[1]/image.shape[0]
 
@@ -85,47 +86,6 @@ class DataSourcer:
         anchors = self.params.get_anchors()
         pixels_x = images[0].shape[1]
         pixels_y = images[0].shape[0]
-        y_set = np.zeros((images.shape[0], int(pixels_y/stride), int(pixels_x/stride), len(anchors)*5))
-
-        for image_index in tqdm(range(len(images))):
-            t_bbox = bboxes[image_index]
-            highest_iou = 0
-            iou_index = None
-            pos_count = 0
-            for y in range(int(stride/2), int(pixels_y+stride/2), stride):
-                for x in range(int(stride/2), int(pixels_x+stride/2), stride):
-                    anchor_regs = np.zeros((len(anchors)*4))
-                    anchor_count = 0
-                    for anchor in anchors:
-                        a_bbox = U.anchor_to_bbox(anchor, x, y)
-                        iou = U.calc_iou(t_bbox, a_bbox)
-                        if highest_iou < iou:
-                            highest_iou = iou
-                            iou_index = [y, x, anchor_count]
-                        if iou > 0.7:
-                            pos_count += 1
-                            y_set[image_index, int(y/stride-0.5), int(x/stride-0.5), anchor_count-9] = 1
-                        elif iou < 0.3:
-                            y_set[image_index, int(y / stride - 0.5), int(x / stride - 0.5), anchor_count - 9] = -1
-                        delta_x = (t_bbox[0] - a_bbox[0])/a_bbox[2]
-                        delta_y = (t_bbox[1] - a_bbox[1])/a_bbox[3]
-                        delta_width = math.log(t_bbox[2]/a_bbox[2])
-                        delta_height = math.log(t_bbox[3]/a_bbox[3])
-                        anchor_regs[(anchor_count * 4):anchor_count*4 + 4] = np.array([delta_x, delta_y, delta_width,
-                                                                                                        delta_height])
-                        anchor_count += 1
-                    y_set[image_index, int(y/stride-0.5), int(x/stride-0.5), :len(anchors)*4] = anchor_regs
-            if pos_count == 0 and iou_index is not None:
-                y_set[image_index, int(iou_index[0]/stride-0.5), int(iou_index[1]/stride-0.5), iou_index[2]-9] = 1
-        x_set = images
-        return x_set, y_set
-
-    def create_bbox_set_v2(self, images, bboxes):
-        print('Creating data set...')
-        stride = self.params.STRIDE
-        anchors = self.params.get_anchors()
-        pixels_x = images[0].shape[1]
-        pixels_y = images[0].shape[0]
         y_set = np.zeros((images.shape[0], int(pixels_y/stride), int(pixels_x/stride), len(anchors)*5+1))
 
         for image_index in tqdm(range(len(images))):
@@ -140,8 +100,8 @@ class DataSourcer:
                     local_highest = 0
                     best_anchor = 0
                     for anchor in anchors:
-                        a_bbox = U.anchor_to_bbox(anchor, x, y)
-                        iou = U.calc_iou(t_bbox, a_bbox)
+                        a_bbox = anchor_to_bbox(anchor, x, y)
+                        iou = calc_iou(t_bbox, a_bbox)
                         if highest_iou < iou:
                             highest_iou = iou
                             iou_index = [y, x, anchor_count]
@@ -171,16 +131,17 @@ class DataSourcer:
         x_set = np.stack(x_set)
         return x_set, y_set
 
-    def create_bbox_set_from_ids(self, ids, data_points_per_id, version='v2'):
+    def create_bbox_set_from_ids(self, ids, data_points_per_id):
         first_run = True
         images, bboxes = None, None
         for id in ids:
             url = 'http://www.image-net.org/api/text/imagenet.synset.geturls.getmapping?wnid='+id
             data_path = os.path.join('utility/tar_files', id+'.tar.gz').replace(os.sep, '/')
             mapping_dict = self.get_mapping(url)
-            data_dict = self.get_file_data(data_path)
-            temp_images, temp_bboxes = self.compile_data(image_size=(self.params.IMAGE_WIDTH, self.params.IMAGE_HEIGHT), mapping=mapping_dict, coords_data=data_dict,
-                                                  max_count=data_points_per_id)
+            data_dict = self.get_file_data()
+            temp_images, temp_bboxes = self.compile_data(image_size=(self.params.IMAGE_WIDTH, self.params.IMAGE_HEIGHT),
+                                                         mapping=mapping_dict, coords_data=data_dict,
+                                                         max_count=data_points_per_id)
             if first_run:
                 images = temp_images
                 bboxes = temp_bboxes
@@ -189,20 +150,17 @@ class DataSourcer:
                 images = np.concatenate((images, temp_images))
                 bboxes = np.concatenate((bboxes, temp_bboxes))
 
-        anchors = U.smart_calc(bboxes)
+        anchors = smart_calc(bboxes)
         self.params.ANCHOR_RATIOS = anchors[0]
         self.params.ANCHOR_SCALES = anchors[1]
-        if version == 'v1':
-            x_set, y_set = self.create_bbox_set(images, bboxes)
-        if version == 'v2':
-            x_set, y_set = self.create_bbox_set_v2(images, bboxes)
+        x_set, y_set = self.create_bbox_set(images, bboxes)
         print(anchors)
         return x_set, y_set, images, bboxes
 
     def create_cls_set_from_ids(self, id_dict, num_per_class):
         keys = list(id_dict.keys())
         flipped_dict = {value: key for key, value in id_dict.items()}
-        one_hot = U.get_one_hot(keys)
+        one_hot = get_one_hot(keys)
         x_set, y_set = [], []
         q = multiprocessing.Queue()
         processes = []
@@ -334,6 +292,7 @@ class DataSourcer:
             for i in range(split):
                 with open(file_location + "/" + name + str(i) + '.pickle', 'wb+') as f:
                     pickle.dump(tensor[int(i * length / split): int((i + 1) * length / split)], f)
+        print(name + " successfully saved!")
 
     @staticmethod
     def split_read(file_location, name, split=3):
@@ -347,14 +306,3 @@ class DataSourcer:
                     output = pickle.load(f) if first_run else np.concatenate((output, pickle.load(f)))
                 first_run = False
         return output
-
-    @staticmethod
-    def out_of_image(bbox, image_width, image_height):
-        coords = U.bbox_to_coords(bbox)
-        xs = coords[::2]
-        ys = coords[1::2]
-        x_bool = [0 > val or val > image_width for val in xs]
-        y_bool = [0 > val or val > image_height for val in ys]
-        if True in x_bool or True in y_bool:
-            return True
-        return False

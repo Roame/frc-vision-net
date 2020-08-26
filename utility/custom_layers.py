@@ -1,10 +1,10 @@
 from config import *
-from tensorflow.keras.layers import Dense, Flatten, Dropout
 import tensorflow as tf
+from tensorflow.keras.layers import Dense, Flatten, Dropout
 import numpy as np
 
 
-class ROIPooling(keras.layers.Layer):
+class ROIPooling(tf.keras.layers.Layer):
     def __init__(self, batch_size=32, stride=16, output_size=[7, 7], training=True, **kwargs):
         super(ROIPooling, self).__init__(**kwargs)
 
@@ -43,62 +43,9 @@ class ROIPooling(keras.layers.Layer):
         return config
 
 
-class NMSLayer(keras.layers.Layer):
-    def __init__(self, anchors, batch_size=32, stride=16, cls_thresh=0.95, max_iou=0.1, num_proposals=10,
-                 name="NMSLayer", trainable=False, dtype=None):
-        super(NMSLayer, self).__init__()
-        self.name = name
-        self.trainable = trainable
-        self.dtype = dtype
-
-        self.anchors = tf.constant(anchors)
-        self.batch_size = batch_size
-        self.stride = stride
-        self.cls_thresh = cls_thresh
-        self.max_iou = max_iou
-        self.num_proposals = num_proposals
-
-    def call(self, inputs, **kwargs):
-        cls_scores = inputs[:, :, :, -9:]
-        bbox_reg = inputs[:, :, :, :-9]
-        indices = tf.where(cls_scores > self.cls_thresh)
-        scores = tf.gather_nd(cls_scores, indices)
-        anchors = tf.cast(tf.gather(self.anchors, indices[:, 3]), tf.float32)
-        a_bboxes = tf.stack([(tf.cast(indices[:, 2], tf.float32)+0.5)*self.stride,
-                             (tf.cast(indices[:, 1], tf.float32)+0.5)*self.stride,
-                              anchors[:, 1], anchors[:, 1]/anchors[:, 0]], axis=1)
-        scaling = tf.constant([1, 1, 1, 4])
-        tiling = tf.constant([1, 4, 1])
-        addition = tf.concat([tf.zeros([4, 3], dtype=tf.int32), tf.reshape(tf.range(4, dtype=tf.int32), [4, 1])], axis=1)
-        reg_indices = tf.add(tf.tile(tf.expand_dims(tf.multiply(tf.cast(indices, tf.int32), scaling), axis=1), tiling), addition)
-        deltas = tf.gather_nd(bbox_reg, reg_indices)
-        bboxes = tf.stack([deltas[:, 0]*a_bboxes[:, 2]+a_bboxes[:, 0],
-                          deltas[:, 1]*a_bboxes[:, 3]+a_bboxes[:, 1],
-                          tf.exp(deltas[:, 2])*a_bboxes[:, 2],
-                          tf.exp(deltas[:, 3])*a_bboxes[:, 3]], axis=1)
-        coords = tf.stack([bboxes[:, 1]-bboxes[:, 3]/2, bboxes[:, 0]-bboxes[:, 2]/2,
-                           bboxes[:, 1]+bboxes[:, 3]/2, bboxes[:, 0]+bboxes[:, 2]/2], axis=1)
-        output = []
-        for i in range(self.batch_size):
-            b_indices = tf.where(indices[:, 0] == i)
-            b_coords = tf.gather_nd(coords, b_indices)
-            b_scores = tf.gather_nd(scores, b_indices)
-            b_bboxes = tf.gather_nd(bboxes, b_indices)
-            selected_indices = tf.image.non_max_suppression(b_coords, b_scores, self.num_proposals, self.max_iou)
-            s_bboxes = tf.gather(b_bboxes, selected_indices)
-            output.append(tf.pad(s_bboxes, [[0, 0], [0, 10-tf.shape(s_bboxes)[0]]]))
-        return tf.stack(output)
-
-    def get_config(self):
-        config = super(NMSLayer, self).get_config()
-        config.update({"anchors": self.anchors.numpy(), "batch_size": self.batch_size, "stride": self.stride,
-                       "cls_thresh": self.cls_thresh, "max_iou": self.max_iou, "num_proposals": self.num_proposals})
-        return config
-
-
-class NMSLayerV2(keras.layers.Layer):
+class NMSLayer(tf.keras.layers.Layer):
     def __init__(self, anchors, batch_size=32, stride=16, cls_thresh=0.95, max_iou=0.1, num_proposals=10, **kwargs):
-        super(NMSLayerV2, self).__init__(**kwargs)
+        super(NMSLayer, self).__init__(**kwargs)
 
         self.anchors = tf.constant(anchors)
         self.batch_size = batch_size
@@ -145,7 +92,7 @@ class NMSLayerV2(keras.layers.Layer):
         return tf.stack(output)
 
     def get_config(self):
-        config = super(NMSLayerV2, self).get_config()
+        config = super(NMSLayer, self).get_config()
         config.update({"anchors": self.anchors.numpy(), "batch_size": self.batch_size, "stride": self.stride,
                        "cls_thresh": self.cls_thresh, "max_iou": self.max_iou, "num_proposals": self.num_proposals})
         return config
@@ -154,7 +101,7 @@ class NMSLayerV2(keras.layers.Layer):
         return None, 10, 4
 
 
-class LoopedDense(keras.layers.Layer):
+class LoopedDense(tf.keras.layers.Layer):
     def __init__(self, multi_model, num_classes, from_model=True, weights=None, **kwargs):
         super(LoopedDense, self).__init__(**kwargs)
         if from_model:
@@ -189,10 +136,6 @@ class LoopedDense(keras.layers.Layer):
         config.update({"multi_model": self.cls_model.to_json(), "num_classes": self.num_classes, "from_model": False, "weights": self.cls_model.get_weights()})
         return config
 
-    # @classmethod
-    # def from_config(cls, config):
-    #     return LoopedDense(config)
-
 
 if __name__ == "__main__":
     # anchors = [[ratio, scale] for ratio in np.arange(1, 2.5, 0.5) for scale in np.arange(100, 250, 50)]
@@ -201,7 +144,7 @@ if __name__ == "__main__":
     # print(layer.call([tf.reshape(tf.range(0, 255, delta=255/25088), [2, 14, 14, 64]), tf.ones([2, 10, 4]) * 0.85]))
 
     anchors = [[ratio, scale] for ratio in np.arange(1, 2.5, 0.5) for scale in np.arange(100, 250, 50)]
-    layer = NMSLayerV2(anchors=anchors, batch_size=2)
+    layer = NMSLayer(anchors=anchors, batch_size=2)
     # print(layer(tf.reshape(tf.range(0, 255, delta=255/18032), [2, 14, 14, 46])))
     # print(layer.call(tf.ones([2, 14, 14, 46])))
     # print(layer(tf.reshape(tf.range(0, 255, delta=255 / 17640), [2, 14, 14, 45])))
