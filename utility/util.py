@@ -43,7 +43,7 @@ def apply_deltas(bbox, deltas):
     return bbox
 
 
-def smart_calc(ground_bboxes):
+def smart_calc_anchors(ground_bboxes):
     ratios = []
     scales = []
     for bbox in ground_bboxes:

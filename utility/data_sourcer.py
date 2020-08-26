@@ -138,7 +138,7 @@ class DataSourcer:
             url = 'http://www.image-net.org/api/text/imagenet.synset.geturls.getmapping?wnid='+id
             data_path = os.path.join('utility/tar_files', id+'.tar.gz').replace(os.sep, '/')
             mapping_dict = self.get_mapping(url)
-            data_dict = self.get_file_data()
+            data_dict = self.get_file_data(data_path)
             temp_images, temp_bboxes = self.compile_data(image_size=(self.params.IMAGE_WIDTH, self.params.IMAGE_HEIGHT),
                                                          mapping=mapping_dict, coords_data=data_dict,
                                                          max_count=data_points_per_id)
@@ -150,7 +150,7 @@ class DataSourcer:
                 images = np.concatenate((images, temp_images))
                 bboxes = np.concatenate((bboxes, temp_bboxes))
 
-        anchors = smart_calc(bboxes)
+        anchors = smart_calc_anchors(bboxes)
         self.params.ANCHOR_RATIOS = anchors[0]
         self.params.ANCHOR_SCALES = anchors[1]
         x_set, y_set = self.create_bbox_set(images, bboxes)

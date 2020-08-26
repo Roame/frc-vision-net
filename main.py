@@ -50,49 +50,49 @@ if __name__ == "__main__":
     # Data Prep
     # =================================
 
-    with open('utility/data_sets/ball_images.pickle', 'rb') as f:
-        ball_images = pickle.load(f)
-    with open('utility/data_sets/ball_bboxes.pickle', 'rb') as f:
-        ball_bboxes = pickle.load(f)
-    ball_images, ball_bboxes = sourcer.rotate_expansion(ball_images, ball_bboxes)
-
-    with open('utility/data_sets/ukulele_images.pickle', 'rb') as f:
-        uk_images = pickle.load(f)
-    with open('utility/data_sets/ukulele_bboxes.pickle', 'rb') as f:
-        uk_bboxes = pickle.load(f)
-    uk_images, uk_bboxes = sourcer.rotate_expansion(uk_images, uk_bboxes)
-
-    slice = min(ball_images.shape[0], int(uk_images.shape[0]/2))
-    ball_images = ball_images[:slice]
-    ball_bboxes = ball_bboxes[:slice]
-    uk_images = uk_images[:slice*2]
-    uk_bboxes = uk_bboxes[:slice*2]
-
-    ball_cls = np.array([[1, 0] for i in range(slice)])
-    uk_cls = np.array([[0, 1] for i in range(slice*2)])
-
-    images = np.concatenate((ball_images, uk_images), axis=0)
-    bboxes = np.concatenate((ball_bboxes, uk_bboxes), axis=0)
-    cls = np.concatenate((ball_cls, uk_cls), axis=0)
-    print(images.shape, bboxes.shape, cls.shape)
-
-    anchors = smart_calc(bboxes)
-    params.ANCHOR_RATIOS = anchors[0]
-    params.ANCHOR_SCALES = anchors[1]
-    print(anchors)
-
-    indices = np.random.choice(range(images.shape[0]), (1200,), replace=False)
-    images = images[indices]
-    bboxes = bboxes[indices]
-    cls = cls[indices]
-
-    x_set, y_set = sourcer.create_bbox_set(images, bboxes)
-    os.makedirs(output_file_path, exist_ok=True)
-    sourcer.split_write(output_file_path, data_name + '_images', images, split)
-    sourcer.split_write(output_file_path, data_name + '_bboxes', bboxes, split)
-    sourcer.split_write(output_file_path, data_name + '_cls', cls, split)
-    sourcer.split_write(output_file_path, data_name + '_x_set', x_set, split)
-    sourcer.split_write(output_file_path, data_name + '_y_set', y_set, split)
+    # with open('utility/data_sets/ball_images.pickle', 'rb') as f:
+    #     ball_images = pickle.load(f)
+    # with open('utility/data_sets/ball_bboxes.pickle', 'rb') as f:
+    #     ball_bboxes = pickle.load(f)
+    # ball_images, ball_bboxes = sourcer.rotate_expansion(ball_images, ball_bboxes)
+    #
+    # with open('utility/data_sets/ukulele_images.pickle', 'rb') as f:
+    #     uk_images = pickle.load(f)
+    # with open('utility/data_sets/ukulele_bboxes.pickle', 'rb') as f:
+    #     uk_bboxes = pickle.load(f)
+    # uk_images, uk_bboxes = sourcer.rotate_expansion(uk_images, uk_bboxes)
+    #
+    # slice = min(ball_images.shape[0], int(uk_images.shape[0]/2))
+    # ball_images = ball_images[:slice]
+    # ball_bboxes = ball_bboxes[:slice]
+    # uk_images = uk_images[:slice*2]
+    # uk_bboxes = uk_bboxes[:slice*2]
+    #
+    # ball_cls = np.array([[1, 0] for i in range(slice)])
+    # uk_cls = np.array([[0, 1] for i in range(slice*2)])
+    #
+    # images = np.concatenate((ball_images, uk_images), axis=0)
+    # bboxes = np.concatenate((ball_bboxes, uk_bboxes), axis=0)
+    # cls = np.concatenate((ball_cls, uk_cls), axis=0)
+    # print(images.shape, bboxes.shape, cls.shape)
+    #
+    # anchors = smart_calc_anchors(bboxes)
+    # params.ANCHOR_RATIOS = anchors[0]
+    # params.ANCHOR_SCALES = anchors[1]
+    # print(anchors)
+    #
+    # indices = np.random.choice(range(images.shape[0]), (1200,), replace=False)
+    # images = images[indices]
+    # bboxes = bboxes[indices]
+    # cls = cls[indices]
+    #
+    # x_set, y_set = sourcer.create_bbox_set(images, bboxes)
+    # os.makedirs(output_file_path, exist_ok=True)
+    # sourcer.split_write(output_file_path, data_name + '_images', images, split)
+    # sourcer.split_write(output_file_path, data_name + '_bboxes', bboxes, split)
+    # sourcer.split_write(output_file_path, data_name + '_cls', cls, split)
+    # sourcer.split_write(output_file_path, data_name + '_x_set', x_set, split)
+    # sourcer.split_write(output_file_path, data_name + '_y_set', y_set, split)
 
     # =================================
     # RPN Model Gen and Training
@@ -136,46 +136,46 @@ if __name__ == "__main__":
     # Classification Model Gen and Training
     # =======================================
 
-    # x_set = sourcer.split_read(output_file_path, data_name + '_x_set', split)
-    # y_set = sourcer.split_read(output_file_path, data_name + '_cls', split)
-    #
-    # model = keras.models.load_model(rpn_path, compile=False)
-    # for layer in model.layers:
-    #     layer.trainable = False
-    # feature_map = model.get_layer('block5_conv3').output
-    # proposals = model.get_layer('concat').output
-    #
-    # bboxes = NMSLayerV2(params.get_anchors(), batch_size=params.BATCH_SIZE, stride=params.STRIDE, cls_thresh=0.5)(proposals)
-    # # x = ROIPooling(params.BATCH_SIZE, stride=params.STRIDE, output_size=[7, 7], training=True)([feature_map, bboxes])
-    # roi_out = ROIPooling(params.BATCH_SIZE, stride=params.STRIDE, output_size=[7, 7], training=True)([feature_map, bboxes])
-    #
-    # bot_input = Input(shape=(7, 7, 512))
-    # # x = Flatten()(x)
-    # x = Flatten()(bot_input)
-    # x = Dense(512, activation='relu')(x)
-    # x = Dense(512, activation='relu')(x)
-    # output = Dense(params.NUM_CLASSES, activation='softmax')(x)
-    # # model = keras.Model(inputs=model.inputs, outputs=[output])
-    # top_model = keras.Model(inputs=model.inputs, outputs=[roi_out])
-    # bot_model = keras.Model(inputs=[bot_input], outputs=[output])
-    #
-    # model.summary()
-    #
-    # loss_fn = tf.keras.losses.CategoricalCrossentropy()
-    # optimizer = SGD(learning_rate=0.0001)
-    #
-    # for batch in range(int(len(x_set)/params.BATCH_SIZE)):
-    #     x_batch = x_set[batch*params.BATCH_SIZE:(batch+1)*params.BATCH_SIZE]
-    #     y_batch = y_set[batch * params.BATCH_SIZE:(batch + 1) * params.BATCH_SIZE]
-    #     feed = top_model(x_batch)
-    #     with tf.GradientTape() as tape:
-    #         logits = bot_model(feed)
-    #         loss_value = loss_fn(y_batch, logits)
-    #     gradients = tape.gradient(loss_value, model.trainable_weights)
-    #     optimizer.apply_gradients(zip(gradients, model.trainable_weights))
-    #     print(loss_value)
-    #
-    # model.save(cls_path)
+    x_set = sourcer.split_read(output_file_path, data_name + '_x_set', split)
+    y_set = sourcer.split_read(output_file_path, data_name + '_cls', split)
+
+    model = keras.models.load_model(rpn_path, compile=False)
+    for layer in model.layers:
+        layer.trainable = False
+    feature_map = model.get_layer('block5_conv3').output
+    proposals = model.get_layer('concat').output
+
+    bboxes = NMSLayer(params.get_anchors(), batch_size=params.BATCH_SIZE, stride=params.STRIDE, cls_thresh=0.5)(proposals)
+    # x = ROIPooling(params.BATCH_SIZE, stride=params.STRIDE, output_size=[7, 7], training=True)([feature_map, bboxes])
+    roi_out = ROIPooling(params.BATCH_SIZE, stride=params.STRIDE, output_size=[7, 7], training=True)([feature_map, bboxes])
+
+    bot_input = Input(shape=(7, 7, 512))
+    x = Flatten()(bot_input)
+    # x = Flatten()(x)
+    x = Dense(512, activation='relu')(x)
+    x = Dense(512, activation='relu')(x)
+    output = Dense(params.NUM_CLASSES, activation='softmax')(x)
+    # model = keras.Model(inputs=model.inputs, outputs=[output])
+    top_model = keras.Model(inputs=model.inputs, outputs=[roi_out])
+    bot_model = keras.Model(inputs=[bot_input], outputs=[output])
+
+    model.summary()
+
+    loss_fn = tf.keras.losses.CategoricalCrossentropy()
+    optimizer = SGD(learning_rate=0.0001)
+
+    for batch in range(int(len(x_set)/params.BATCH_SIZE)):
+        x_batch = x_set[batch*params.BATCH_SIZE:(batch+1)*params.BATCH_SIZE]
+        y_batch = y_set[batch * params.BATCH_SIZE:(batch + 1) * params.BATCH_SIZE]
+        feed = top_model(x_batch)
+        with tf.GradientTape() as tape:
+            logits = bot_model(feed)
+            loss_value = loss_fn(y_batch, logits)
+        gradients = tape.gradient(loss_value, model.trainable_weights)
+        optimizer.apply_gradients(zip(gradients, model.trainable_weights))
+        print(loss_value)
+
+    model.save(cls_path)
 
     # =======================================
     # Reorganizing for Implementation
