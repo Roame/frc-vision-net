@@ -9,12 +9,17 @@ from enum import Enum
 class ModelBlock:
     class BlockState(Enum):
         TRAINING = 0,
-        RUNNING = 1
+        RUNNING = 1,
+        ALT = 2
 
-    def __init__(self):
-        self._model = self._get_training_model()
-        self.state = ModelBlock.BlockState.TRAINING
-        print("initialized")
+    def __init__(self, input_model=None):
+        if input_model:
+            self._model = input_model
+            self.pre_configured = False
+            self.state = ModelBlock.BlockState.ALT
+        else:
+            self._model = self._get_training_model()
+            self.state = ModelBlock.BlockState.TRAINING
 
     def call(self, inputs):
         return self._model(inputs)
@@ -45,10 +50,28 @@ class ModelBlock:
         self._model = model
 
     def save(self, filepath):
+        if self.state is not ModelBlock.BlockState.ALT:
+           self.configure(ModelBlock.BlockState.RUNNING)
         self._model.save(filepath)
 
     def load(self, filepath):
         self._model = keras.models.load_model(filepath)
+        self.state = ModelBlock.BlockState.RUNNING
+
+    @staticmethod
+    def concat_blocks(block_array):
+        first_run = True
+        for block in block_array:
+            model = block.get_model()
+            if first_run:
+                inputs = model.inputs
+                x = model(inputs)
+                first_run = False
+            else:
+                x = model(x)
+        output_model = keras.Model(inputs=inputs, outputs=[x])
+        new_block = ModelBlock(output_model)
+        return new_block
 
     def configure(self, desired_state):
         if desired_state == ModelBlock.BlockState.TRAINING and self.state != desired_state:
@@ -61,6 +84,15 @@ class ModelBlock:
         else:
             ValueError(desired_state)
 
+    def get_model(self):
+        return self._model
+
+    def get_output_shape(self):
+        return self._model.output_shape[1:]
+
+    def summary(self):
+        self._model.summary()
+
     def _configure_for_training(self): pass
 
     def _configure_for_running(self): pass
@@ -71,6 +103,7 @@ class ModelBlock:
 class FeatureExtractorBlock(ModelBlock):
     def __init__(self, input_shape):
         self.input_shape = input_shape
+        super().__init__()
 
     def _get_training_model(self):
         return keras.applications.VGG16(input_shape=self.input_shape, include_top=False)
@@ -82,7 +115,7 @@ class RPNBlock(ModelBlock):
         self.input_shape = input_shape
         self.nms_layer = NMSLayer(self.params.get_anchors(), batch_size=self.params.BATCH_SIZE,
                                   stride=self.params.STRIDE, cls_thresh=0.5, name="nms")
-        self._model = self.__get_rpn_model()
+        super().__init__()
 
     def _configure_for_training(self):
         inputs = self._model.inputs
@@ -104,14 +137,13 @@ class RPNBlock(ModelBlock):
         cls = Conv2D(1, (1, 1), activation='sigmoid', padding='same', name='cls')(x)
         proposals = Concatenate(name='concat')([b_reg, a_reg, cls])
 
-        return keras.Model(inputs=[input], outputs=[proposals])
+        return keras.Model(inputs=[input], outputs=[proposals], name='rpn')
 
 
 class ClassifierBlock(ModelBlock):
     def __init__(self):
         self.params = Parameters()
         super().__init__()
-        self._model.summary()
 
     def _configure_for_training(self):
         input = Input(shape=(7 * 7 * 512))

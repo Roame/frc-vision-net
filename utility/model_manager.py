@@ -8,6 +8,33 @@ class ModelManager:
     def __init__(self):
         self.params = Parameters()
 
+    def train_model(self, x_set, y_set, model, loss_fn, optimizer):
+        print("Starting Training")
+        steps_per_epoch = int(len(x_set)/self.params.BATCH_SIZE)
+        for epoch in range(self.params.EPOCHS):
+            print("Epoch: " + str(epoch) + " [", end='')
+            running_loss = 0
+            batch_log_count = 0
+            for batch in range(steps_per_epoch):
+                batch_slice = slice(batch*self.params.BATCH_SIZE, (batch+1)*self.params.BATCH_SIZE)
+                x_batch, y_batch = x_set[batch_slice], y_set[batch_slice]
+                with tf.GradientTape() as tape:
+                    logits = model.call(x_batch)
+                    loss_value = loss_fn(y_batch, logits)
+                grads = tape.gradient(loss_value, model.get_model().trainable_weights)
+                optimizer.apply_gradients(zip(grads, model.get_model().trainable_weights))
+
+                running_loss += loss_value
+
+                log_tick = int((batch/steps_per_epoch)*100)
+                interval = 4
+                if log_tick % interval == 0 and log_tick != batch_log_count:
+                    print("=", end='')
+                    batch_log_count += interval
+            print("] Loss {loss:.2f}".format(loss=running_loss/steps_per_epoch))
+        model.freeze_layers()
+        # return model
+
     @staticmethod
     def rpn_loss(y_true, y_pred):
         # It is assumed that the classification for foreground/background is the last 'layer' of the output array

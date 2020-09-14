@@ -203,12 +203,10 @@ if __name__ == "__main__":
     # cv2.destroyAllWindows
 
 
-    config = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=4, inter_op_parallelism_threads=4,
-                                      allow_soft_placement=True, device_count={'CPU': 1, 'GPU': 1})
-    config.gpu_options.allow_growth = True
-    # config.gpu_options.per_process_gpu_memory_fraction = 0.6
-    sess = tf.compat.v1.Session(config=config)
-    tf.compat.v1.keras.backend.set_session(sess)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        tf.config.experimental.set_memory_growth(gpus[0], True)
+        # tf.config.experimental.set_virtual_device_configuration(gpus[0], [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=4000)])
 
     model = keras.models.load_model('models/test_rpn', compile=False)
     # model = keras.models.load_model('../ball_rpn1.h5', compile=False)
@@ -262,25 +260,25 @@ if __name__ == "__main__":
             coords = [0, 0, 1, 1]
         cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(0, 255, 0), thickness=7)
 
-        pred_a_bbox = anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8)
-        coords = bbox_to_coords(pred_a_bbox)
-        cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 255, 255), thickness=7)
-
-        print(anchor_i)
-
-        a_sel_true = y_set[set, index[1], index[2], 36:-1]
-        anchor_i = np.argmax(a_sel_true)
-        print(anchor_i)
-        g_bbox = apply_deltas(anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8),
-                            y_set[set][index[1], index[2], anchor_i * 4:(anchor_i+1) * 4])
-        coords = bbox_to_coords(g_bbox)
-        cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 0, 0), thickness=1)
-
-        a_bbox = anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8)
-        coords = bbox_to_coords(a_bbox)
-        print(calc_iou(g_bbox, a_bbox))
-        print(calc_iou(g_bbox, pred_a_bbox))
-        cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 255, 255), thickness=1)
+        # pred_a_bbox = anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8)
+        # coords = bbox_to_coords(pred_a_bbox)
+        # cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 255, 255), thickness=7)
+        #
+        # print(anchor_i)
+        #
+        # a_sel_true = y_set[set, index[1], index[2], 36:-1]
+        # anchor_i = np.argmax(a_sel_true)
+        # print(anchor_i)
+        # g_bbox = apply_deltas(anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8),
+        #                     y_set[set][index[1], index[2], anchor_i * 4:(anchor_i+1) * 4])
+        # coords = bbox_to_coords(g_bbox)
+        # cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 0, 0), thickness=1)
+        #
+        # a_bbox = anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8)
+        # coords = bbox_to_coords(a_bbox)
+        # print(calc_iou(g_bbox, a_bbox))
+        # print(calc_iou(g_bbox, pred_a_bbox))
+        # cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 255, 255), thickness=1)
 
         cv2.imshow('test', test_image)
         cv2.waitKey(0)
