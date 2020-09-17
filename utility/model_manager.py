@@ -81,7 +81,7 @@ class ModelManager:
         organized_b_reg_pred = tf.gather_nd(pos_slices_pred, b_reg_indices)
         anchor_loss = tf.keras.losses.Huber()(organized_b_reg_true, organized_b_reg_pred)
 
-        loss = 7*cls_loss + 5*anchor_loss + 2*a_sel_loss
+        loss = 10*cls_loss + 5*anchor_loss + 2*a_sel_loss  # was 7, 5, 2
         return loss
 
     @staticmethod

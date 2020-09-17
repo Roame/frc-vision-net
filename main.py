@@ -113,22 +113,31 @@ if __name__ == "__main__":
     print(x_set.shape, y_set.shape)
 
     feat_extractor = FeatureExtractorBlock((params.IMAGE_HEIGHT, params.IMAGE_WIDTH, 3))
-    feat_extractor.freeze_model()
+    feat_extractor.freeze_layers()
     rpn = RPNBlock(feat_extractor.get_output_shape())
+    # input = Input(batch_input_shape=(params.BATCH_SIZE, 448, 448, 3))
+    # x = input
+    # for layer in feat_extractor.get_model().layers[1:]:
+    #     x = layer(x)
+    # for layer in rpn.get_model().layers[1:]:
+    #     x = layer(x)
+    # model = keras.Model(inputs=[input], outputs=[x])
+    # model.summary()
+
     full_rpn = ModelBlock.concat_blocks([feat_extractor, rpn])
     full_rpn.summary()
+    model = full_rpn.get_model()
 
     lr_schedule = ExponentialDecay(0.01, decay_steps=int((x_set.shape[0]/params.BATCH_SIZE)*params.EPOCHS/3), decay_rate=0.1, staircase=True)
     opt = SGD(learning_rate=lr_schedule)
     loss_fn = ModelManager.rpn_loss
     # TODO: In the middle of working on custom training loop
     model_manager.train_model(x_set, y_set, full_rpn, loss_fn, opt)
+    full_rpn.summary()
+    full_rpn.save(rpn_path)
 
     # model.compile(opt, loss_fn)
     # fit_data = model.fit(x_set, y_set, params.BATCH_SIZE, params.EPOCHS, validation_split=0.05)
-
-    full_rpn.summary()
-    full_rpn.save(rpn_path)
 
     # plt.plot(fit_data.history['loss'], label='loss')
     # plt.plot(fit_data.history['val_loss'], label='val_loss')

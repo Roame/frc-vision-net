@@ -106,7 +106,14 @@ class FeatureExtractorBlock(ModelBlock):
         super().__init__()
 
     def _get_training_model(self):
-        return keras.applications.VGG16(input_shape=self.input_shape, include_top=False)
+        vgg = keras.applications.VGG16(input_shape=self.input_shape, include_top=False)
+        inputs = vgg.inputs
+        x = inputs[0]
+        for layer in vgg.layers[:-1]:
+            x = layer(x)
+        model = keras.Model(inputs=inputs, outputs=[x])
+        model.summary()
+        return model
 
 
 class RPNBlock(ModelBlock):
