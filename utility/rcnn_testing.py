@@ -32,16 +32,18 @@ IMAGE_HEIGHT = 240
 IMAGE_WIDTH = 320
 STRIDE = 16
 
+net_path = 'models/test_net'
+
 
 class ObjectDetection:
     def __init__(self, mode='multi'):
-        model = keras.models.load_model('models/example_net.h5', compile=False,
-                                        custom_objects={'NMSLayerV2': NMSLayer,
+        model = keras.models.load_model(net_path, compile=False,
+                                        custom_objects={'NMSLayer': NMSLayer,
                                                         'ROIPooling': ROIPooling,
                                                         'LoopedDense': LoopedDense})
         # self.model = model
         model.layers[0].batch_input_shape = (None, 240, 320, 3)
-        new_model = keras.models.model_from_json(model.to_json(), custom_objects={'NMSLayerV2': NMSLayer,
+        new_model = keras.models.model_from_json(model.to_json(), custom_objects={'NMSLayer': NMSLayer,
                                                                                   'ROIPooling': ROIPooling,
                                                                                   'LoopedDense': LoopedDense})
         for layer in new_model.layers:
@@ -124,8 +126,8 @@ class ObjectDetection:
         network_elapse = time.time() - start
 
         if self.mode == 'multi':
-            bboxes = prediction[0][0]
-            classes = prediction[1][0]
+            bboxes = prediction[0][0][0]
+            classes = prediction[0][1][0]
             for index, bbox in enumerate(bboxes):
                 cls = classes[index]
                 coords = bbox_to_coords(bbox)
@@ -203,89 +205,89 @@ if __name__ == "__main__":
     # cv2.destroyAllWindows
 
 
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    if gpus:
-        tf.config.experimental.set_memory_growth(gpus[0], True)
-        # tf.config.experimental.set_virtual_device_configuration(gpus[0], [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=4000)])
+    # gpus = tf.config.experimental.list_physical_devices('GPU')
+    # if gpus:
+    #     tf.config.experimental.set_memory_growth(gpus[0], True)
+    #     # tf.config.experimental.set_virtual_device_configuration(gpus[0], [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=4000)])
+    #
+    # model = keras.models.load_model('models/test_rpn', compile=False)
+    # # model = keras.models.load_model('../ball_rpn1.h5', compile=False)
+    #
+    # model.summary()
+    # with open('data_sets/test/multi_images.pickle', 'rb') as f:
+    #     images = pickle.load(f)
+    # with open('data_sets/test/multi_y_set.pickle', 'rb') as f:
+    #     y_set = pickle.load(f)
+    # with open('data_sets/test/multi_cls.pickle', 'rb') as f:
+    #     cls_set = pickle.load(f)
+    # indices = np.random.choice(range(images.shape[0]), (500,), replace=False)
+    # images = images[indices]
+    # y_set = y_set[indices]
+    # cls_set = cls_set[indices]
+    # print(images.shape)
+    # print(y_set.shape)
+    #
+    # for set in range(0, len(images)):
+    #     cls = cls_set[set]
+    #     print(cls)
+    #     test_image = images[set]
+    #     image = zscore(test_image)
+    #     model_input = np.expand_dims(image, axis=0)
+    #     prediction = model.predict(model_input, batch_size=1)
+    #
+    #     prediction[:, 0, :, -1] = 0
+    #     prediction[:, -1, :, -1] = 0
+    #     prediction[:, :, 0, -1] = 0
+    #     prediction[:, :, -1, -1] = 0
+    #
+    #     cls_scr = prediction[:, :, :, -1:]
+    #     cls_true = np.expand_dims(y_set[set, :, :, -1], axis=0)
+    #
+    #     index = np.argwhere(cls_scr == np.amax(cls_scr))[0]
+    #     # index = np.argwhere(cls_true == np.amax(cls_true))[0]
+    #
+    #     a_sel_pred = prediction[index[0], index[1], index[2], 36:-1]
+    #     # a_sel_pred = y_set[set, index[1], index[2], 36:-1]
+    #     anchor_i = np.argmax(a_sel_pred)
+    #
+    #     cv2.circle(test_image, (index[2] * 16 + 8, index[1] * 16 + 8), 7, (0, 255, 0), -1)
+    #     try:
+    #         bbox = apply_deltas(anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8),
+    #                             prediction[index[0], index[1], index[2], anchor_i * 4:(anchor_i+1) * 4])
+    #     except:
+    #         continue
+    #
+    #     coords = bbox_to_coords(bbox)
+    #     if np.amax(coords) > 1000:
+    #         coords = [0, 0, 1, 1]
+    #     cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(0, 255, 0), thickness=7)
+    #
+    #     # pred_a_bbox = anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8)
+    #     # coords = bbox_to_coords(pred_a_bbox)
+    #     # cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 255, 255), thickness=7)
+    #     #
+    #     # print(anchor_i)
+    #     #
+    #     # a_sel_true = y_set[set, index[1], index[2], 36:-1]
+    #     # anchor_i = np.argmax(a_sel_true)
+    #     # print(anchor_i)
+    #     # g_bbox = apply_deltas(anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8),
+    #     #                     y_set[set][index[1], index[2], anchor_i * 4:(anchor_i+1) * 4])
+    #     # coords = bbox_to_coords(g_bbox)
+    #     # cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 0, 0), thickness=1)
+    #     #
+    #     # a_bbox = anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8)
+    #     # coords = bbox_to_coords(a_bbox)
+    #     # print(calc_iou(g_bbox, a_bbox))
+    #     # print(calc_iou(g_bbox, pred_a_bbox))
+    #     # cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 255, 255), thickness=1)
+    #
+    #     cv2.imshow('test', test_image)
+    #     cv2.waitKey(0)
+    # cv2.destroyAllWindows
 
-    model = keras.models.load_model('models/test_rpn', compile=False)
-    # model = keras.models.load_model('../ball_rpn1.h5', compile=False)
-
-    model.summary()
-    with open('data_sets/test/multi_images.pickle', 'rb') as f:
-        images = pickle.load(f)
-    with open('data_sets/test/multi_y_set.pickle', 'rb') as f:
-        y_set = pickle.load(f)
-    with open('data_sets/test/multi_cls.pickle', 'rb') as f:
-        cls_set = pickle.load(f)
-    indices = np.random.choice(range(images.shape[0]), (500,), replace=False)
-    images = images[indices]
-    y_set = y_set[indices]
-    cls_set = cls_set[indices]
-    print(images.shape)
-    print(y_set.shape)
-
-    for set in range(0, len(images)):
-        cls = cls_set[set]
-        print(cls)
-        test_image = images[set]
-        image = zscore(test_image)
-        model_input = np.expand_dims(image, axis=0)
-        prediction = model.predict(model_input, batch_size=1)
-
-        prediction[:, 0, :, -1] = 0
-        prediction[:, -1, :, -1] = 0
-        prediction[:, :, 0, -1] = 0
-        prediction[:, :, -1, -1] = 0
-
-        cls_scr = prediction[:, :, :, -1:]
-        cls_true = np.expand_dims(y_set[set, :, :, -1], axis=0)
-
-        index = np.argwhere(cls_scr == np.amax(cls_scr))[0]
-        # index = np.argwhere(cls_true == np.amax(cls_true))[0]
-
-        a_sel_pred = prediction[index[0], index[1], index[2], 36:-1]
-        # a_sel_pred = y_set[set, index[1], index[2], 36:-1]
-        anchor_i = np.argmax(a_sel_pred)
-
-        cv2.circle(test_image, (index[2] * 16 + 8, index[1] * 16 + 8), 7, (0, 255, 0), -1)
-        try:
-            bbox = apply_deltas(anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8),
-                                prediction[index[0], index[1], index[2], anchor_i * 4:(anchor_i+1) * 4])
-        except:
-            continue
-
-        coords = bbox_to_coords(bbox)
-        if np.amax(coords) > 1000:
-            coords = [0, 0, 1, 1]
-        cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(0, 255, 0), thickness=7)
-
-        # pred_a_bbox = anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8)
-        # coords = bbox_to_coords(pred_a_bbox)
-        # cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 255, 255), thickness=7)
-        #
-        # print(anchor_i)
-        #
-        # a_sel_true = y_set[set, index[1], index[2], 36:-1]
-        # anchor_i = np.argmax(a_sel_true)
-        # print(anchor_i)
-        # g_bbox = apply_deltas(anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8),
-        #                     y_set[set][index[1], index[2], anchor_i * 4:(anchor_i+1) * 4])
-        # coords = bbox_to_coords(g_bbox)
-        # cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 0, 0), thickness=1)
-        #
-        # a_bbox = anchor_to_bbox(anchors[anchor_i], index[2] * 16 + 8, index[1] * 16 + 8)
-        # coords = bbox_to_coords(a_bbox)
-        # print(calc_iou(g_bbox, a_bbox))
-        # print(calc_iou(g_bbox, pred_a_bbox))
-        # cv2.rectangle(test_image, (coords[0], coords[1]), (coords[2], coords[3]), color=(255, 255, 255), thickness=1)
-
-        cv2.imshow('test', test_image)
-        cv2.waitKey(0)
-    cv2.destroyAllWindows
-
-    # obj_detect = ObjectDetection()
-    # while not keyboard.is_pressed('q'):
-    #     obj_detect.run()
-    # obj_detect.stop()
+    obj_detect = ObjectDetection()
+    while not keyboard.is_pressed('q'):
+        obj_detect.run()
+    obj_detect.stop()
 

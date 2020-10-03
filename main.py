@@ -40,8 +40,8 @@ if __name__ == "__main__":
     params.IMAGE_HEIGHT = 448
     params.ANCHOR_RATIOS = [0.6041739339219643, 0.9994668733549451, 1.8924804524684733]
     params.ANCHOR_SCALES = [76.8881118881119, 160.56993006993008, 260.7412587412587]
-    params.BATCH_SIZE = 3
-    params.EPOCHS = 8 #8 epochs for rpn and 10*3 for cls, start at lr of 0.001 for cls, rpn get decay from 0.01
+    params.BATCH_SIZE = 16
+    params.EPOCHS = 1  # 8 epochs for rpn and 10*3 for cls, start at lr of 0.001 for cls, rpn get decay from 0.01
     params.NUM_VAL_BATCHES = 2
     params.STRIDE = 16
     params.NUM_CLASSES = 2
@@ -52,6 +52,7 @@ if __name__ == "__main__":
     split = None
     output_file_path = 'utility/data_sets/test'
     data_name = 'multi'
+    extractor_path = 'utility/models/test_extractor'
     rpn_path = 'utility/models/test_rpn'
     cls_path = 'utility/models/test_cls'
     net_path = 'utility/models/test_net'
@@ -108,87 +109,73 @@ if __name__ == "__main__":
     # RPN Model Gen and Training
     # =================================
 
-    x_set = sourcer.split_read(output_file_path, data_name + '_x_set', split)
-    y_set = sourcer.split_read(output_file_path, data_name + '_y_set', split)
-    print(x_set.shape, y_set.shape)
-
-    feat_extractor = FeatureExtractorBlock((params.IMAGE_HEIGHT, params.IMAGE_WIDTH, 3))
-    feat_extractor.freeze_layers()
-    rpn = RPNBlock(feat_extractor.get_output_shape())
-    # input = Input(batch_input_shape=(params.BATCH_SIZE, 448, 448, 3))
-    # x = input
-    # for layer in feat_extractor.get_model().layers[1:]:
-    #     x = layer(x)
-    # for layer in rpn.get_model().layers[1:]:
-    #     x = layer(x)
-    # model = keras.Model(inputs=[input], outputs=[x])
-    # model.summary()
-
-    full_rpn = ModelBlock.concat_blocks([feat_extractor, rpn])
-    full_rpn.summary()
-    model = full_rpn.get_model()
-
-    lr_schedule = ExponentialDecay(0.01, decay_steps=int((x_set.shape[0]/params.BATCH_SIZE)*params.EPOCHS/3), decay_rate=0.1, staircase=True)
-    opt = SGD(learning_rate=lr_schedule)
-    loss_fn = ModelManager.rpn_loss
-    # TODO: In the middle of working on custom training loop
-    model_manager.train_model(x_set, y_set, full_rpn, loss_fn, opt)
-    full_rpn.summary()
-    full_rpn.save(rpn_path)
-
-    # model.compile(opt, loss_fn)
-    # fit_data = model.fit(x_set, y_set, params.BATCH_SIZE, params.EPOCHS, validation_split=0.05)
-
-    # plt.plot(fit_data.history['loss'], label='loss')
-    # plt.plot(fit_data.history['val_loss'], label='val_loss')
-    # plt.ylim(0, 2.0)
-    # plt.legend()
-    # plt.show()
+    # x_set = sourcer.split_read(output_file_path, data_name + '_x_set', split)
+    # y_set = sourcer.split_read(output_file_path, data_name + '_y_set', split)
+    # print("Data Shape: ", x_set.shape, y_set.shape)
+    #
+    # feat_extractor = FeatureExtractorBlock((params.IMAGE_HEIGHT, params.IMAGE_WIDTH, 3))
+    # feat_extractor.freeze_layers()
+    # rpn = RPNBlock(feat_extractor.get_output_shape())
+    #
+    # full_rpn = ModelBlock.concat_blocks([feat_extractor, rpn])
+    # full_rpn.summary()
+    #
+    # lr_schedule = ExponentialDecay(0.01, decay_steps=int((x_set.shape[0]/params.BATCH_SIZE)*params.EPOCHS/3), decay_rate=0.1, staircase=True)
+    # opt = SGD(learning_rate=lr_schedule)
+    # loss_fn = ModelManager.rpn_loss
+    # model_manager.train_model(x_set, y_set, None, full_rpn, loss_fn, opt)
+    #
+    # feat_extractor.save(extractor_path)
+    # rpn.save(rpn_path)
+    # # rpn.summary()
 
     # =======================================
     # Classification Model Gen and Training
     # =======================================
 
-    # x_set = sourcer.split_read(output_file_path, data_name + '_x_set', split)
-    # y_set = sourcer.split_read(output_file_path, data_name + '_cls', split)
-    #
-    # model = keras.models.load_model(rpn_path, compile=False)
-    # for layer in model.layers:
-    #     layer.trainable = False
-    # feature_map = model.get_layer('block5_conv3').output
-    # proposals = model.get_layer('concat').output
-    #
-    # bboxes = NMSLayer(params.get_anchors(), batch_size=params.BATCH_SIZE, stride=params.STRIDE, cls_thresh=0.5)(proposals)
-    # # x = ROIPooling(params.BATCH_SIZE, stride=params.STRIDE, output_size=[7, 7], training=True)([feature_map, bboxes])
-    # roi_out = ROIPooling(params.BATCH_SIZE, stride=params.STRIDE, output_size=[7, 7], training=True)([feature_map, bboxes])
-    #
-    # bot_input = Input(shape=(7, 7, 512))
-    # x = Flatten()(bot_input)
-    # # x = Flatten()(x)
-    # x = Dense(512, activation='relu')(x)
-    # x = Dense(512, activation='relu')(x)
-    # output = Dense(params.NUM_CLASSES, activation='softmax')(x)
-    # # model = keras.Model(inputs=model.inputs, outputs=[output])
-    # top_model = keras.Model(inputs=model.inputs, outputs=[roi_out])
-    # bot_model = keras.Model(inputs=[bot_input], outputs=[output])
-    #
-    # model.summary()
-    #
-    # loss_fn = tf.keras.losses.CategoricalCrossentropy()
-    # optimizer = SGD(learning_rate=0.0001)
-    #
-    # for batch in range(int(len(x_set)/params.BATCH_SIZE)):
-    #     x_batch = x_set[batch*params.BATCH_SIZE:(batch+1)*params.BATCH_SIZE]
-    #     y_batch = y_set[batch * params.BATCH_SIZE:(batch + 1) * params.BATCH_SIZE]
-    #     feed = top_model(x_batch)
-    #     with tf.GradientTape() as tape:
-    #         logits = bot_model(feed)
-    #         loss_value = loss_fn(y_batch, logits)
-    #     gradients = tape.gradient(loss_value, model.trainable_weights)
-    #     optimizer.apply_gradients(zip(gradients, model.trainable_weights))
-    #     print(loss_value)
-    #
-    # model.save(cls_path)
+    x_set = sourcer.split_read(output_file_path, data_name + '_x_set', split)
+    y_set = sourcer.split_read(output_file_path, data_name + '_cls', split)
+
+    extractor = FeatureExtractorBlock((params.IMAGE_HEIGHT, params.IMAGE_WIDTH, 3))
+    extractor.load(extractor_path)
+    extractor.freeze_model()
+
+    rpn = RPNBlock(extractor.get_output_shape())
+    rpn.load(rpn_path)
+    rpn.freeze_model()
+    rpn.get_model().get_layer('nms').batch_size = params.BATCH_SIZE
+    rpn.summary()
+    # rpn.summary()
+
+    cls = ClassifierBlock()
+
+    feat_model = extractor.get_model()
+    feat_model.summary()
+    rpn_model = rpn.get_model()
+    rpn_model.summary()
+    cls_model = cls.get_model()
+    cls_model.summary()
+
+    input = Input(shape=(448, 448, 3))
+    feat_out = feat_model(input)
+    rpn_out = rpn_model(feat_out)
+    # output = cls_model([feat_out, rpn_out])
+
+    prep_model = ModelBlock(keras.Model([input], [rpn_out]))
+    end_model = cls
+    prep_model.summary()
+    end_model.summary()
+
+    loss_fn = tf.keras.losses.CategoricalCrossentropy()
+    opt = SGD(learning_rate=0.01)
+
+    model_manager.train_model(x_set, y_set, prep_model, cls, loss_fn, opt)
+
+    cls.save(cls_path)
+    output = cls.get_model()(rpn_out)
+    full_model = ModelBlock(keras.Model([input], [output]))
+    full_model.save(net_path)
+    full_model.summary()
 
     # =======================================
     # Reorganizing for Implementation

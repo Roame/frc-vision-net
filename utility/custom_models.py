@@ -111,8 +111,7 @@ class FeatureExtractorBlock(ModelBlock):
         x = inputs[0]
         for layer in vgg.layers[:-1]:
             x = layer(x)
-        model = keras.Model(inputs=inputs, outputs=[x])
-        model.summary()
+        model = keras.Model(inputs=inputs, outputs=[x], name="vgg16")
         return model
 
 
@@ -126,14 +125,16 @@ class RPNBlock(ModelBlock):
 
     def _configure_for_training(self):
         inputs = self._model.inputs
+        self.nms_layer.batch_size = self.params.BATCH_SIZE
         outputs = [self._model.get_layer("concat").output]
-        self._model = keras.Model(inputs=inputs, outputs=outputs)
+        self._model = keras.Model(inputs=inputs, outputs=outputs, name="rpn")
 
     def _configure_for_running(self):
         inputs = self._model.inputs
         proposals = self._model.get_layer("concat").output
-        outputs = [self.nms_layer(proposals)]
-        self._model = keras.Model(inputs=inputs, outputs=outputs)
+        self.nms_layer.batch_size = self.params.BATCH_SIZE
+        outputs = [self._model.inputs[0], self.nms_layer(proposals)]
+        self._model = keras.Model(inputs=inputs, outputs=outputs, name="rpn")
 
     def _get_training_model(self):
         input = Input(shape=self.input_shape)
@@ -153,43 +154,42 @@ class ClassifierBlock(ModelBlock):
         super().__init__()
 
     def _configure_for_training(self):
-        input = Input(shape=(7 * 7 * 512))
-        x = Dense.from_config(self._model.layers[-3].get_config())(input)
-        x = Dense.from_config(self._model.layers[-2].get_config())(x)
-        x = Dense.from_config(self._model.layers[-1].get_config())(x)
-        self.cls_model = keras.Model(inputs=[input], outputs=[x])
-        self.cls_model.layers[1].set_weights(self._model.layers[-3].get_weights())
-        self.cls_model.layers[2].set_weights(self._model.layers[-2].get_weights())
-        self.cls_model.layers[3].set_weights(self._model.layers[-1].get_weights())
+        inputs = [Input(shape=(28, 28, 512)), Input(shape=(10, 4))]
+        pooling = self._model.get_layer('roi_pooling')
+        pooling.training = True
+        x = pooling(inputs)
+        x = self._model.get_layer('looped_dense').get_dense_model()(x)
+        self._model = keras.Model(inputs=inputs, outputs=[x], name="classifier")
 
     def _configure_for_running(self):
-        # self._model = LoopedDense()(self.roi_pooling_layer)
-        input = Input(shape=(7*7*512))
-        x = Dense.from_config(self._model.layers[-3].get_config())(input)
-        x = Dense.from_config(self._model.layers[-2].get_config())(x)
-        x = Dense.from_config(self._model.layers[-1].get_config())(x)
-        self.cls_model = keras.Model(inputs=[input], outputs=[x])
-        self.cls_model.layers[1].set_weights(self._model.layers[-3].get_weights())
-        self.cls_model.layers[2].set_weights(self._model.layers[-2].get_weights())
-        self.cls_model.layers[3].set_weights(self._model.layers[-1].get_weights())
-        pass
+        inputs = [Input(shape=(28, 28, 512)), Input(shape=(10, 4))]
+        pooling = self._model.get_layer('roi_pooling')
+        pooling.training = False
+        # pooling.batch_size = 1
+        x = pooling(inputs)
+        x = LoopedDense(self._model.get_layer('dense_layers'), self.params.NUM_CLASSES, name="looped_dense")(x)
+        self._model = keras.Model(inputs=inputs, outputs=[inputs[1], x], name="classifier")
 
     def _get_training_model(self):
-        # input = Input(shape=(7, 7, 512))
         inputs = [Input(shape=(28, 28, 512)), Input(shape=(10, 4))]
         x = ROIPooling(self.params.BATCH_SIZE, stride=self.params.STRIDE, output_size=[7, 7], training=True,
                             name='roi_pooling')(inputs)
         x = Flatten()(x)
-        x = Dense(512, activation='relu')(x)
+        output = self.__get_dense_layers()(x)
+        return keras.Model(inputs=inputs, outputs=[output], name='classifier')
+
+    def __get_dense_layers(self):
+        input = Input(shape=(25088,))
+        x = Dense(512, activation='relu')(input)
         x = Dense(512, activation='relu')(x)
         output = Dense(self.params.NUM_CLASSES, activation='softmax')(x)
-        return keras.Model(inputs=inputs, outputs=[output])
+        return keras.Model(inputs=[input], outputs=[output], name='dense_layers')
 
-    def __get_roi_pooling_model(self):
-        inputs = [Input(shape=(28, 28, 512)), Input(shape=(10, 4))]
-        output = ROIPooling(self.params.BATCH_SIZE, stride=self.params.STRIDE, output_size=[7, 7], training=False,
-                   name='roi_pooling')(inputs)
-        return keras.Model(inputs=inputs, outputs=[output])
+    # def __get_roi_pooling_model(self):
+    #     inputs = [Input(shape=(28, 28, 512)), Input(shape=(10, 4))]
+    #     output = ROIPooling(self.params.BATCH_SIZE, stride=self.params.STRIDE, output_size=[7, 7], training=False,
+    #                name='roi_pooling')(inputs)
+    #     return keras.Model(inputs=inputs, outputs=[output])
 
 
 if __name__ == "__main__":

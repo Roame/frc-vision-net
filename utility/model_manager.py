@@ -8,7 +8,7 @@ class ModelManager:
     def __init__(self):
         self.params = Parameters()
 
-    def train_model(self, x_set, y_set, model, loss_fn, optimizer):
+    def train_model(self, x_set, y_set, prep_model, model, loss_fn, optimizer):
         print("Starting Training")
         steps_per_epoch = int(len(x_set)/self.params.BATCH_SIZE)
         for epoch in range(self.params.EPOCHS):
@@ -18,6 +18,10 @@ class ModelManager:
             for batch in range(steps_per_epoch):
                 batch_slice = slice(batch*self.params.BATCH_SIZE, (batch+1)*self.params.BATCH_SIZE)
                 x_batch, y_batch = x_set[batch_slice], y_set[batch_slice]
+
+                if prep_model is not None:
+                    x_batch = prep_model.call(x_batch)
+
                 with tf.GradientTape() as tape:
                     logits = model.call(x_batch)
                     loss_value = loss_fn(y_batch, logits)
