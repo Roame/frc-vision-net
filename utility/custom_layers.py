@@ -97,43 +97,35 @@ class NMSLayer(tf.keras.layers.Layer):
                        "cls_thresh": self.cls_thresh, "max_iou": self.max_iou, "num_proposals": self.num_proposals})
         return config
 
-    def compute_output_shape(self, input_shape):
-        return None, 10, 4
+    # def compute_output_shape(self, input_shape):
+    #     return None, 10, 4
 
 
 class LoopedDense(tf.keras.layers.Layer):
-    def __init__(self, multi_model, num_classes, from_model=True, weights=None, **kwargs):
+    def __init__(self, dense_model, num_classes, weights=None, **kwargs):
         super(LoopedDense, self).__init__(**kwargs)
-        if from_model:
-            input = keras.layers.Input((25088, ))
-            x = Dense.from_config(multi_model.layers[-3].get_config())(input)
-            x = Dense.from_config(multi_model.layers[-2].get_config())(x)
-            x = Dense.from_config(multi_model.layers[-1].get_config())(x)
-            self.cls_model = keras.Model(inputs=[input], outputs=[x])
-            self.cls_model.layers[1].set_weights(multi_model.layers[-3].get_weights())
-            self.cls_model.layers[2].set_weights(multi_model.layers[-2].get_weights())
-            self.cls_model.layers[3].set_weights(multi_model.layers[-1].get_weights())
+        if isinstance(dense_model, str):
+            self.dense_model = keras.models.model_from_json(dense_model)
+            self.dense_model.set_weights(weights)
         else:
-            self.cls_model = keras.models.model_from_json(multi_model)
-            self.cls_model.set_weights(weights)
+            self.dense_model = dense_model
         self.num_classes = num_classes
 
     def call(self, inputs, **kwargs):
         classifications = []
         for i in range(inputs.shape[1]):
             map = inputs[:, i]
-            x = Flatten()(map)
-            x = self.cls_model(x)
+            x = self.dense_model(map)
             classifications.append(x[0])
         output = tf.expand_dims(tf.stack(classifications), axis=0)
         return output
 
-    def compute_output_shape(self, input_shape):
-        return None, 10, self.num_classes
+    # def compute_output_shape(self, input_shape):
+    #     return None, 10, self.num_classes
 
     def get_config(self):
         config = super(LoopedDense, self).get_config()
-        config.update({"multi_model": self.cls_model.to_json(), "num_classes": self.num_classes, "from_model": False, "weights": self.cls_model.get_weights()})
+        config.update({"dense_model": self.dense_model.to_json(), "num_classes": self.num_classes, "weights": self.dense_model.get_weights()})
         return config
 
 

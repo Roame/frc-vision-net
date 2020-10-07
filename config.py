@@ -1,4 +1,5 @@
 import tensorflow as tf
+# from keras import
 from tensorflow import keras
 import math
 import numpy as np
@@ -16,7 +17,7 @@ class _Data:
         self.ANCHOR_SCALES = [75, 150, 300]
         self.BATCH_SIZE = 32
         self.EPOCHS = 50
-        self.NUM_VAL_BATCHES = 2
+        self.VALIDATION_SPLIT = 0.1
         self.STRIDE = 16
         self.NUM_CLASSES = 2
 
