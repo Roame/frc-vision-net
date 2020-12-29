@@ -106,6 +106,8 @@ class LoopedDense(tf.keras.layers.Layer):
         super(LoopedDense, self).__init__(**kwargs)
         if isinstance(dense_model, str):
             self.dense_model = keras.models.model_from_json(dense_model)
+            for i in range(len(weights)):
+                weights[i] = tf.convert_to_tensor(weights[i])
             self.dense_model.set_weights(weights)
         else:
             self.dense_model = dense_model

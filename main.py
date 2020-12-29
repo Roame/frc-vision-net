@@ -19,11 +19,19 @@ IDS_DICT = {'dog': DOG_ID, 'fox': KIT_FOX_ID, 'airplane': AIRPLANE_ID, 'golfball
 
 
 if __name__ == "__main__":
-    config = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=4, inter_op_parallelism_threads=4,
-                                      allow_soft_placement=True, device_count={'CPU': 1, 'GPU': 1})
-    config.gpu_options.allow_growth = True
-    sess = tf.compat.v1.Session(config=config)
-    tf.compat.v1.keras.backend.set_session(sess)
+    # config = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=4, inter_op_parallelism_threads=4,
+    #                                   allow_soft_placement=True, device_count={'CPU': 1, 'GPU': 1})
+    # config.gpu_options.allow_growth = True
+    # sess = tf.compat.v1.Session(config=config)
+    # tf.compat.v1.keras.backend.set_session(sess)
+
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+        except RuntimeError as e:
+            print(e)
 
     params = Parameters()
     params.IMAGE_WIDTH = 448

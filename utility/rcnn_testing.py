@@ -44,17 +44,17 @@ class ObjectDetection:
         model = keras.models.load_model(net_path)
         self.model = model
 
-        # model.layers[0].batch_input_shape = (None, 240, 320, 3)
-        # new_model = keras.models.model_from_json(model.to_json(), custom_objects={'NMSLayer': NMSLayer,
-        #                                                                           'ROIPooling': ROIPooling,
-        #                                                                           'LoopedDense': LoopedDense})
-        # for layer in new_model.layers:
-        #     layer.trainable = False
-        #     try:
-        #         layer.set_weights(model.get_layer(name=layer.name).get_weights())
-        #     except:
-        #         print("ah man")
-        # self.model = new_model
+        model.layers[0].batch_input_shape = (None, 240, 320, 3)
+        new_model = keras.models.model_from_json(model.to_json(), custom_objects={'NMSLayer': NMSLayer,
+                                                                                  'ROIPooling': ROIPooling,
+                                                                                  'LoopedDense': LoopedDense})
+        for layer in new_model.layers:
+            layer.trainable = False
+            try:
+                layer.set_weights(model.get_layer(name=layer.name).get_weights())
+            except:
+                print("ah man")
+        self.model = new_model
 
         self.model.summary()
         self.mode = mode
